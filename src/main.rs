@@ -1,10 +1,12 @@
 use bevy::{
-    app::{App, Startup},
+    app::{App, Startup, Update},
     asset::Assets,
     core_pipeline::core_2d::Camera2dBundle,
     ecs::{
         bundle::Bundle,
         component::Component,
+        query::With,
+        schedule::IntoSystemConfigs,
         system::{Commands, Query, ResMut},
     },
     math::{primitives::Circle, Vec2},
@@ -70,6 +72,15 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn_empty().insert(Camera2dBundle::default());
 }
 
+fn move_ball(
+    // Give me all positions that also contain a `Ball` component
+    mut ball: Query<&mut Position, With<Ball>>,
+) {
+    if let Ok(mut position) = ball.get_single_mut() {
+        position.0.x += 1.0
+    }
+}
+
 fn project_positions(mut positionables: Query<(&mut Transform, &Position)>) {
     // Here we are iterating over the query to get the
     // components from our game world
@@ -83,5 +94,6 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_systems(Startup, (spawn_ball, spawn_camera))
         .add_systems(Startup, project_positions)
+        .add_systems(Update, (move_ball, project_positions.after(move_ball)))
         .run();
 }
