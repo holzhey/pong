@@ -9,7 +9,10 @@ use bevy::{
         schedule::IntoSystemConfigs,
         system::{Commands, Query, ResMut},
     },
-    math::{primitives::Circle, Vec2},
+    math::{
+        primitives::{Circle, Rectangle},
+        Vec2,
+    },
     render::{color::Color, mesh::Mesh},
     sprite::{ColorMaterial, MaterialMesh2dBundle},
     transform::components::Transform,
@@ -84,10 +87,55 @@ fn project_positions(mut positionables: Query<(&mut Transform, &Position)>) {
     }
 }
 
+const PADDLE_SPEED: f32 = 1.;
+const PADDLE_WIDTH: f32 = 10.;
+const PADDLE_HEIGHT: f32 = 50.;
+
+#[derive(Component)]
+struct Paddle;
+
+#[derive(Bundle)]
+struct PaddleBundle {
+    paddle: Paddle,
+    position: Position,
+}
+
+impl PaddleBundle {
+    fn new(x: f32, y: f32) -> Self {
+        Self {
+            paddle: Paddle,
+            position: Position(Vec2::new(x, y)),
+        }
+    }
+}
+
+fn spawn_paddles(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    println!("Spawning paddles...");
+
+    let mesh = Mesh::from(Rectangle::new(PADDLE_WIDTH, PADDLE_HEIGHT));
+    let material = ColorMaterial::from(Color::rgb(0., 1., 0.));
+
+    let mesh_handle = meshes.add(mesh);
+    let material_handle = materials.add(material);
+
+    commands.spawn((
+        PaddleBundle::new(20., -25.),
+        MaterialMesh2dBundle {
+            mesh: mesh_handle.into(),
+            material: material_handle,
+            ..Default::default()
+        },
+    ));
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_systems(Startup, (spawn_ball, spawn_camera))
+        .add_systems(Startup, (spawn_ball, spawn_camera, spawn_paddles))
         .add_systems(Startup, project_positions)
         .add_systems(Update, (move_ball, project_positions.after(move_ball)))
         .run();
