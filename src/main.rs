@@ -72,18 +72,13 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn_empty().insert(Camera2dBundle::default());
 }
 
-fn move_ball(
-    // Give me all positions that also contain a `Ball` component
-    mut ball: Query<&mut Position, With<Ball>>,
-) {
+fn move_ball(mut ball: Query<&mut Position, With<Ball>>) {
     if let Ok(mut position) = ball.get_single_mut() {
         position.0.x += 1.0
     }
 }
 
 fn project_positions(mut positionables: Query<(&mut Transform, &Position)>) {
-    // Here we are iterating over the query to get the
-    // components from our game world
     for (mut transform, position) in positionables.iter_mut() {
         transform.translation = position.0.extend(0.);
     }
