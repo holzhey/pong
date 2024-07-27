@@ -5,9 +5,10 @@ use bevy::{
     ecs::{
         bundle::Bundle,
         component::Component,
+        event::{Event, EventReader, EventWriter},
         query::{With, Without},
         schedule::IntoSystemConfigs,
-        system::{Commands, Query, Res, ResMut},
+        system::{Commands, Query, Res, ResMut, Resource},
     },
     input::{keyboard::KeyCode, ButtonInput},
     math::{
@@ -83,7 +84,7 @@ fn spawn_ball(
     // followed by an `insert`. They mean the same thing,
     // letting us spawn many components on a new entity at once.
     commands.spawn((
-        BallBundle::new(1., 0.),
+        BallBundle::new(2., 0.),
         MaterialMesh2dBundle {
             mesh: mesh_handle.into(),
             material: material_handle,
@@ -332,9 +333,75 @@ fn spawn_gutters(
     }
 }
 
+enum Scorer {
+    Ai,
+    Player,
+}
+
+#[derive(Event)]
+struct Scored(Scorer);
+
+#[derive(Resource, Default)]
+struct Score {
+    player: u32,
+    ai: u32,
+}
+
+fn detect_scoring(
+    mut ball: Query<&mut Position, With<Ball>>,
+    window: Query<&Window>,
+    mut events: EventWriter<Scored>,
+) {
+    if let Ok(window) = window.get_single() {
+        let window_width = window.resolution.width();
+
+        if let Ok(ball) = ball.get_single_mut() {
+            // Here we write the events using our EventWriter
+            if ball.0.x > window_width / 2. {
+                events.send(Scored(Scorer::Ai));
+            } else if ball.0.x < -window_width / 2. {
+                events.send(Scored(Scorer::Player));
+            }
+        }
+    }
+}
+
+fn reset_ball(
+    mut ball: Query<(&mut Position, &mut Velocity), With<Ball>>,
+    mut events: EventReader<Scored>,
+) {
+    for event in events.read() {
+        if let Ok((mut position, mut velocity)) = ball.get_single_mut() {
+            match event.0 {
+                Scorer::Ai => {
+                    position.0 = Vec2::new(0., 0.);
+                    velocity.0 = Vec2::new(-1., 1.);
+                }
+                Scorer::Player => {
+                    position.0 = Vec2::new(0., 0.);
+                    velocity.0 = Vec2::new(1., 1.);
+                }
+            }
+        }
+    }
+}
+
+fn update_score(mut score: ResMut<Score>, mut events: EventReader<Scored>) {
+    for event in events.read() {
+        match event.0 {
+            Scorer::Ai => score.ai += 1,
+            Scorer::Player => score.player += 1,
+        }
+    }
+
+    println!("Score: {} - {}", score.player, score.ai);
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .init_resource::<Score>()
+        .add_event::<Scored>()
         .add_systems(
             Startup,
             (spawn_ball, spawn_camera, spawn_paddles, spawn_gutters),
@@ -343,10 +410,13 @@ fn main() {
             Update,
             (
                 move_ball,
+                handle_player_input,
+                detect_scoring,
+                reset_ball.after(detect_scoring),
+                update_score.after(detect_scoring),
+                move_paddles.after(handle_player_input),
                 project_positions.after(move_ball),
                 handle_collisions.after(move_ball),
-                handle_player_input.after(move_ball),
-                move_paddles.after(move_ball),
             ),
         )
         .run();
