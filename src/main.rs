@@ -130,7 +130,7 @@ fn collide_with_side(ball: BoundingCircle, wall: Aabb2d) -> Option<Collision> {
     Some(side)
 }
 
-const PADDLE_SPEED: f32 = 1.;
+const _PADDLE_SPEED: f32 = 1.;
 const PADDLE_WIDTH: f32 = 10.;
 const PADDLE_HEIGHT: f32 = 50.;
 
