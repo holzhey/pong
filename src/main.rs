@@ -17,6 +17,7 @@ use bevy::{
     render::{color::Color, mesh::Mesh},
     sprite::{ColorMaterial, MaterialMesh2dBundle},
     transform::components::Transform,
+    window::Window,
     DefaultPlugins,
 };
 
@@ -160,23 +161,37 @@ fn spawn_paddles(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    window: Query<&Window>,
 ) {
     println!("Spawning paddles...");
+    if let Ok(window) = window.get_single() {
+        let window_width = window.resolution.width();
+        let padding = 50.;
+        let right_paddle_x = window_width / 2. - padding;
+        let left_paddle_x = -window_width / 2. + padding;
 
-    let mesh = Mesh::from(Rectangle::new(PADDLE_WIDTH, PADDLE_HEIGHT));
-    let material = ColorMaterial::from(Color::rgb(0., 1., 0.));
+        let mesh = Mesh::from(Rectangle::new(PADDLE_WIDTH, PADDLE_HEIGHT));
 
-    let mesh_handle = meshes.add(mesh);
-    let material_handle = materials.add(material);
+        let mesh_handle = meshes.add(mesh);
 
-    commands.spawn((
-        PaddleBundle::new(20., -25.),
-        MaterialMesh2dBundle {
-            mesh: mesh_handle.into(),
-            material: material_handle,
-            ..Default::default()
-        },
-    ));
+        commands.spawn((
+            PaddleBundle::new(right_paddle_x, 0.),
+            MaterialMesh2dBundle {
+                mesh: mesh_handle.clone().into(),
+                material: materials.add(ColorMaterial::from(Color::rgb(0., 1., 0.))),
+                ..Default::default()
+            },
+        ));
+
+        commands.spawn((
+            PaddleBundle::new(left_paddle_x, 0.),
+            MaterialMesh2dBundle {
+                mesh: mesh_handle.into(),
+                material: materials.add(ColorMaterial::from(Color::rgb(0., 0., 1.))),
+                ..Default::default()
+            },
+        ));
+    }
 }
 
 fn handle_collisions(
