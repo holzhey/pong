@@ -25,9 +25,13 @@ struct Position(Vec2);
 #[derive(Component)]
 struct Ball;
 
+#[derive(Component)]
+struct Velocity(Vec2);
+
 #[derive(Bundle)]
 struct BallBundle {
     ball: Ball,
+    velocity: Velocity,
     position: Position,
 }
 
@@ -35,7 +39,8 @@ impl BallBundle {
     fn new(x: f32, y: f32) -> Self {
         Self {
             ball: Ball,
-            position: Position(Vec2::new(x, y)),
+            velocity: Velocity(Vec2::new(x, y)),
+            position: Position(Vec2::new(0., 0.)),
         }
     }
 }
@@ -50,19 +55,19 @@ fn spawn_ball(
     println!("Spawning ball...");
 
     let shape = Mesh::from(Circle::new(BALL_SIZE));
-    let color = ColorMaterial::from(Color::rgb(1., 0., 0.));
+    let material = ColorMaterial::from(Color::rgb(1., 0., 0.));
 
     // `Assets::add` will load these into memory and return a
     // `Handle` (an ID) to these assets. When all references
     // to this `Handle` are cleaned up the asset is cleaned up.
     let mesh_handle = meshes.add(shape);
-    let material_handle = materials.add(color);
+    let material_handle = materials.add(material);
 
     // Here we are using `spawn` instead of `spawn_empty`
     // followed by an `insert`. They mean the same thing,
     // letting us spawn many components on a new entity at once.
     commands.spawn((
-        BallBundle::new(0., 0.),
+        BallBundle::new(1., 0.),
         MaterialMesh2dBundle {
             mesh: mesh_handle.into(),
             material: material_handle,
@@ -75,9 +80,9 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn_empty().insert(Camera2dBundle::default());
 }
 
-fn move_ball(mut ball: Query<&mut Position, With<Ball>>) {
-    if let Ok(mut position) = ball.get_single_mut() {
-        position.0.x += 1.0
+fn move_ball(mut ball: Query<(&mut Position, &Velocity), With<Ball>>) {
+    if let Ok((mut position, velocity)) = ball.get_single_mut() {
+        position.0 += velocity.0
     }
 }
 
