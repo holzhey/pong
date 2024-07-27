@@ -7,8 +7,9 @@ use bevy::{
         component::Component,
         query::{With, Without},
         schedule::IntoSystemConfigs,
-        system::{Commands, Query, ResMut},
+        system::{Commands, Query, Res, ResMut},
     },
+    input::{keyboard::KeyCode, ButtonInput},
     math::{
         bounding::{Aabb2d, BoundingCircle, BoundingVolume, IntersectsVolume},
         primitives::{Circle, Rectangle},
@@ -131,12 +132,18 @@ fn collide_with_side(ball: BoundingCircle, wall: Aabb2d) -> Option<Collision> {
     Some(side)
 }
 
-const _PADDLE_SPEED: f32 = 1.;
+const PADDLE_SPEED: f32 = 1.;
 const PADDLE_WIDTH: f32 = 10.;
 const PADDLE_HEIGHT: f32 = 50.;
 
 #[derive(Component)]
 struct Paddle;
+
+#[derive(Component)]
+struct Ai;
+
+#[derive(Component)]
+struct Player;
 
 #[derive(Bundle)]
 struct PaddleBundle {
@@ -175,6 +182,7 @@ fn spawn_paddles(
         let mesh_handle = meshes.add(mesh);
 
         commands.spawn((
+            Player,
             PaddleBundle::new(right_paddle_x, 0.),
             MaterialMesh2dBundle {
                 mesh: mesh_handle.clone().into(),
@@ -184,6 +192,7 @@ fn spawn_paddles(
         ));
 
         commands.spawn((
+            Ai,
             PaddleBundle::new(left_paddle_x, 0.),
             MaterialMesh2dBundle {
                 mesh: mesh_handle.into(),
@@ -223,16 +232,121 @@ fn handle_collisions(
     }
 }
 
+fn handle_player_input(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut paddle: Query<&mut Velocity, With<Player>>,
+) {
+    if let Ok(mut velocity) = paddle.get_single_mut() {
+        if keyboard_input.pressed(KeyCode::ArrowUp) {
+            velocity.0.y = 1.;
+        } else if keyboard_input.pressed(KeyCode::ArrowDown) {
+            velocity.0.y = -1.;
+        } else {
+            velocity.0.y = 0.;
+        }
+    }
+}
+
+fn move_paddles(
+    mut paddle: Query<(&mut Position, &Velocity), With<Paddle>>,
+    window: Query<&Window>,
+) {
+    if let Ok(window) = window.get_single() {
+        let window_height = window.resolution.height();
+        let max_y = window_height / 2. - GUTTER_HEIGHT - PADDLE_HEIGHT / 2.;
+
+        for (mut position, velocity) in &mut paddle {
+            let new_position = position.0 + velocity.0 * PADDLE_SPEED;
+            if new_position.y.abs() < max_y {
+                position.0 = new_position;
+            }
+        }
+    }
+}
+
+const GUTTER_HEIGHT: f32 = 20.;
+
+#[derive(Component)]
+struct Gutter;
+
+#[derive(Bundle)]
+struct GutterBundle {
+    gutter: Gutter,
+    shape: Shape,
+    position: Position,
+}
+
+impl GutterBundle {
+    fn new(x: f32, y: f32, width: f32) -> Self {
+        Self {
+            gutter: Gutter,
+            shape: Shape(Vec2::new(width, GUTTER_HEIGHT)),
+            position: Position(Vec2::new(x, y)),
+        }
+    }
+}
+
+fn spawn_gutters(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    window: Query<&Window>,
+) {
+    if let Ok(window) = window.get_single() {
+        let window_width = window.resolution.width();
+        let window_height = window.resolution.height();
+
+        // We take half the window height because the center of our screen
+        // is (0, 0). The padding would be half the height of the gutter as its
+        // origin is also center rather than top left
+        let top_gutter_y = window_height / 2. - GUTTER_HEIGHT / 2.;
+        let bottom_gutter_y = -window_height / 2. + GUTTER_HEIGHT / 2.;
+
+        let top_gutter = GutterBundle::new(0., top_gutter_y, window_width);
+        let bottom_gutter = GutterBundle::new(0., bottom_gutter_y, window_width);
+
+        let mesh = Mesh::from(Rectangle::from_size(top_gutter.shape.0));
+        let material = ColorMaterial::from(Color::rgb(0., 0., 0.));
+
+        // We can share these meshes between our gutters by cloning them
+        let mesh_handle = meshes.add(mesh);
+        let material_handle = materials.add(material);
+
+        commands.spawn((
+            top_gutter,
+            MaterialMesh2dBundle {
+                mesh: mesh_handle.clone().into(),
+                material: material_handle.clone(),
+                ..Default::default()
+            },
+        ));
+
+        commands.spawn((
+            bottom_gutter,
+            MaterialMesh2dBundle {
+                mesh: mesh_handle.into(),
+                material: material_handle.clone(),
+                ..Default::default()
+            },
+        ));
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_systems(Startup, (spawn_ball, spawn_camera, spawn_paddles))
+        .add_systems(
+            Startup,
+            (spawn_ball, spawn_camera, spawn_paddles, spawn_gutters),
+        )
         .add_systems(
             Update,
             (
                 move_ball,
                 project_positions.after(move_ball),
                 handle_collisions.after(move_ball),
+                handle_player_input.after(move_ball),
+                move_paddles.after(move_ball),
             ),
         )
         .run();
