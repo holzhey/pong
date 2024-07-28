@@ -87,7 +87,7 @@ fn spawn_ball(
     // followed by an `insert`. They mean the same thing,
     // letting us spawn many components on a new entity at once.
     commands.spawn((
-        BallBundle::new(2., 0.),
+        BallBundle::new(4., 0.),
         MaterialMesh2dBundle {
             mesh: mesh_handle.into(),
             material: material_handle,
@@ -378,11 +378,11 @@ fn reset_ball(
             match event.0 {
                 Scorer::Ai => {
                     position.0 = Vec2::new(0., 0.);
-                    velocity.0 = Vec2::new(-1., 1.);
+                    velocity.0 = Vec2::new(-4., 4.);
                 }
                 Scorer::Player => {
                     position.0 = Vec2::new(0., 0.);
-                    velocity.0 = Vec2::new(1., 1.);
+                    velocity.0 = Vec2::new(4., 4.);
                 }
             }
         }
@@ -474,6 +474,18 @@ fn spawn_scoreboard(mut commands: Commands) {
     ));
 }
 
+fn move_ai(
+    mut ai: Query<(&mut Velocity, &Position), With<Ai>>,
+    ball: Query<&Position, With<Ball>>,
+) {
+    if let Ok((mut velocity, position)) = ai.get_single_mut() {
+        if let Ok(ball_position) = ball.get_single() {
+            let a_to_b = ball_position.0 - position.0;
+            velocity.0.y = a_to_b.y.signum();
+        }
+    }
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -495,6 +507,7 @@ fn main() {
                 move_ball,
                 handle_player_input,
                 detect_scoring,
+                move_ai.after(move_ball),
                 reset_ball.after(detect_scoring),
                 update_score.after(detect_scoring),
                 update_scoreboard.after(update_score),
