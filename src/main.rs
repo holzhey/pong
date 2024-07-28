@@ -4,6 +4,7 @@ use bevy::{
     core_pipeline::core_2d::Camera2dBundle,
     ecs::{
         bundle::Bundle,
+        change_detection::DetectChanges,
         component::Component,
         event::{Event, EventReader, EventWriter},
         query::{With, Without},
@@ -18,7 +19,9 @@ use bevy::{
     },
     render::{color::Color, mesh::Mesh},
     sprite::{ColorMaterial, MaterialMesh2dBundle},
+    text::{JustifyText, Text, TextStyle},
     transform::components::Transform,
+    ui::{node_bundles::TextBundle, PositionType, Style, Val},
     window::Window,
     DefaultPlugins,
 };
@@ -397,6 +400,80 @@ fn update_score(mut score: ResMut<Score>, mut events: EventReader<Scored>) {
     println!("Score: {} - {}", score.player, score.ai);
 }
 
+#[derive(Component)]
+struct PlayerScoreboard;
+
+#[derive(Component)]
+struct AiScoreboard;
+
+#[derive(Component)]
+struct PlayerScore;
+
+#[derive(Component)]
+struct AiScore;
+
+fn update_scoreboard(
+    mut player_score: Query<&mut Text, With<PlayerScoreboard>>,
+    mut ai_score: Query<&mut Text, (With<AiScoreboard>, Without<PlayerScoreboard>)>,
+    score: Res<Score>,
+) {
+    if score.is_changed() {
+        if let Ok(mut player_score) = player_score.get_single_mut() {
+            player_score.sections[0].value = score.player.to_string();
+        }
+
+        if let Ok(mut ai_score) = ai_score.get_single_mut() {
+            ai_score.sections[0].value = score.ai.to_string();
+        }
+    }
+}
+
+fn spawn_scoreboard(mut commands: Commands) {
+    commands.spawn((
+        // Create a TextBundle that has a Text with a
+        // single section.
+        TextBundle::from_section(
+            // Accepts a `String` or any type that converts
+            // into a `String`, such as `&str`
+            "0",
+            TextStyle {
+                font_size: 72.0,
+                color: Color::WHITE,
+                ..Default::default()
+            },
+        ) // Set the alignment of the Text
+        .with_text_justify(JustifyText::Center)
+        // Set the style of the TextBundle itself.
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            right: Val::Px(15.0),
+            ..Default::default()
+        }),
+        PlayerScore,
+    ));
+
+    // Then we do it again for the AI score
+    commands.spawn((
+        TextBundle::from_section(
+            "0",
+            TextStyle {
+                font_size: 72.0,
+                color: Color::WHITE,
+                ..Default::default()
+            },
+        )
+        .with_text_justify(JustifyText::Center)
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(5.0),
+            left: Val::Px(15.0),
+            ..Default::default()
+        }),
+        AiScore,
+    ));
+}
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -404,7 +481,13 @@ fn main() {
         .add_event::<Scored>()
         .add_systems(
             Startup,
-            (spawn_ball, spawn_camera, spawn_paddles, spawn_gutters),
+            (
+                spawn_ball,
+                spawn_camera,
+                spawn_paddles,
+                spawn_gutters,
+                spawn_scoreboard,
+            ),
         )
         .add_systems(
             Update,
@@ -414,6 +497,7 @@ fn main() {
                 detect_scoring,
                 reset_ball.after(detect_scoring),
                 update_score.after(detect_scoring),
+                update_scoreboard.after(update_score),
                 move_paddles.after(handle_player_input),
                 project_positions.after(move_ball),
                 handle_collisions.after(move_ball),
